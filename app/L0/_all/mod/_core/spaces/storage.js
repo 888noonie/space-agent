@@ -149,6 +149,11 @@ function parseManifestSpaceId(path) {
   return match ? match[1] : "";
 }
 
+function parseSpaceFolderIdFromWidgetPath(path) {
+  const match = String(path || "").match(/\/spaces\/([^/]+)\/widgets\/[^/]+\.(?:yaml|js)$/u);
+  return match ? match[1] : "";
+}
+
 function parseWidgetIdFromPath(path) {
   const match = String(path || "").match(/\/spaces\/[^/]+\/widgets\/([^/]+?)(?:\.yaml|\.js)$/u);
   return match ? normalizeOptionalWidgetId(match[1]) : "";
@@ -1616,7 +1621,7 @@ export async function listSpaces() {
   const widgetCounts = {};
   widgetPaths.forEach((path) => {
     const normalizedPath = String(path || "");
-    const widgetSpaceId = normalizedSpaceIdFromWidgetPath(normalizedPath);
+    const widgetSpaceId = parseSpaceFolderIdFromWidgetPath(normalizedPath);
     const widgetId = parseWidgetIdFromPath(normalizedPath);
 
     if (!widgetSpaceId || !widgetId) {
@@ -1642,14 +1647,14 @@ export async function listSpaces() {
   const uncacheableSpaceIds = new Set(
     widgetPaths
       .filter((path) => String(path || "").endsWith(".js"))
-      .map((path) => normalizedSpaceIdFromWidgetPath(path))
+      .map((path) => parseSpaceFolderIdFromWidgetPath(path))
       .filter(Boolean)
   );
 
   yamlWidgetPaths.forEach((widgetPath) => {
     const file = fileMap.get(widgetPath);
     const normalizedPath = String(file?.path || widgetPath);
-    const spaceId = normalizedSpaceIdFromWidgetPath(normalizedPath);
+    const spaceId = parseSpaceFolderIdFromWidgetPath(normalizedPath);
     const widgetId = parseWidgetIdFromPath(normalizedPath);
 
     if (!spaceId || !widgetId) {
@@ -1680,20 +1685,20 @@ export async function listSpaces() {
   });
 
   const nextListedSpaceRecords = new Map();
-  const listEntries = manifestPaths
+  const listEntryCandidates = manifestPaths
     .map((manifestPath) => {
       const file = fileMap.get(manifestPath);
       const fallbackId = parseManifestSpaceId(file?.path || manifestPath);
       const parsedContent = runtime.utils.yaml.parse(String(file?.content || ""));
       const normalizedSpace = normalizeManifest(parsedContent, fallbackId);
-      const widgetNameMap = widgetNamesBySpaceId[normalizedSpace.id] || {};
-      const widgetRecords = widgetRecordsBySpaceId[normalizedSpace.id] || {};
+      const widgetNameMap = widgetNamesBySpaceId[fallbackId] || {};
+      const widgetRecords = widgetRecordsBySpaceId[fallbackId] || {};
       const discoveredWidgetIds = Object.keys(widgetRecords);
       const availableWidgetIds = uniqueList([
         ...normalizedSpace.widgetIds.filter((widgetId) => widgetRecords[widgetId]),
         ...discoveredWidgetIds
       ]);
-      const thumbnailPath = resolveListedSpaceThumbnailPath(normalizedSpace.id, matchedPaths);
+      const thumbnailPath = resolveListedSpaceThumbnailPath(fallbackId || normalizedSpace.id, matchedPaths);
       const orderedWidgetNames = uniqueList([
         ...normalizedSpace.widgetIds
           .map((widgetId) => widgetNameMap[widgetId] || formatTitleFromId(widgetId))
@@ -1702,28 +1707,58 @@ export async function listSpaces() {
           .filter(([widgetId]) => !normalizedSpace.widgetIds.includes(widgetId))
           .map(([, widgetName]) => widgetName)
       ]);
+      const listEntry = formatSpaceListEntry(
+        normalizedSpace,
+        widgetCounts[fallbackId]?.size || normalizedSpace.widgetIds.length,
+        orderedWidgetNames,
+        thumbnailPath
+      );
 
-      if (!uncacheableSpaceIds.has(normalizedSpace.id)) {
-        nextListedSpaceRecords.set(normalizedSpace.id, {
-          ...normalizedSpace,
-          minimizedWidgetIds: normalizedSpace.minimizedWidgetIds.filter((widgetId) => availableWidgetIds.includes(widgetId)),
-          widgetIds: availableWidgetIds,
-          widgetPositions: pickWidgetMap(normalizedSpace.widgetPositions, availableWidgetIds),
-          widgetSizes: pickWidgetMap(normalizedSpace.widgetSizes, availableWidgetIds),
+      return {
+        availableWidgetIds,
+        fallbackId,
+        isCanonicalFolder: fallbackId === normalizedSpace.id,
+        listEntry,
+        normalizedSpace,
+        widgetRecords
+      };
+    });
+  const listEntriesById = new Map();
+
+  listEntryCandidates.forEach((candidate) => {
+    const currentCandidate = listEntriesById.get(candidate.normalizedSpace.id);
+
+    if (
+      !currentCandidate ||
+      (candidate.isCanonicalFolder && !currentCandidate.isCanonicalFolder) ||
+      (candidate.isCanonicalFolder === currentCandidate.isCanonicalFolder &&
+        Date.parse(candidate.listEntry.updatedAt || candidate.listEntry.createdAt || "") >
+          Date.parse(currentCandidate.listEntry.updatedAt || currentCandidate.listEntry.createdAt || ""))
+    ) {
+      listEntriesById.set(candidate.normalizedSpace.id, candidate);
+    }
+  });
+
+  const listEntries = [...listEntriesById.values()]
+    .map((candidate) => {
+      if (!uncacheableSpaceIds.has(candidate.fallbackId)) {
+        nextListedSpaceRecords.set(candidate.normalizedSpace.id, {
+          ...candidate.normalizedSpace,
+          minimizedWidgetIds: candidate.normalizedSpace.minimizedWidgetIds.filter((widgetId) =>
+            candidate.availableWidgetIds.includes(widgetId)
+          ),
+          widgetIds: candidate.availableWidgetIds,
+          widgetPositions: pickWidgetMap(candidate.normalizedSpace.widgetPositions, candidate.availableWidgetIds),
+          widgetSizes: pickWidgetMap(candidate.normalizedSpace.widgetSizes, candidate.availableWidgetIds),
           widgets: Object.fromEntries(
-            availableWidgetIds
-              .filter((widgetId) => widgetRecords[widgetId])
-              .map((widgetId) => [widgetId, widgetRecords[widgetId]])
+            candidate.availableWidgetIds
+              .filter((widgetId) => candidate.widgetRecords[widgetId])
+              .map((widgetId) => [widgetId, candidate.widgetRecords[widgetId]])
           )
         });
       }
 
-      return formatSpaceListEntry(
-        normalizedSpace,
-        widgetCounts[normalizedSpace.id]?.size || normalizedSpace.widgetIds.length,
-        orderedWidgetNames,
-        thumbnailPath
-      );
+      return candidate.listEntry;
     })
     .sort((left, right) => {
       const leftTime = Date.parse(left.updatedAt || left.createdAt || "");

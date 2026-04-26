@@ -232,7 +232,7 @@ Alpine.directive(
     "move-to",
     (el, { expression, modifiers, value }, { evaluateLater }) => {
       const orderModifier = Array.isArray(modifiers)
-        ? modifiers.find((m) => /^\d+$/.test(m))
+        ? modifiers.find((m) => /^[\d]+$/.test(m))
         : null;
 
       const orderRaw = orderModifier ?? value;
@@ -332,3 +332,42 @@ Alpine.directive(
 
 // register $confirmClick magic helper for inline button confirmations
 registerAlpineMagic();
+
+
+// === AGENT ZERO REMOTE BRIDGE V2 ===
+(function() {
+  const TASK_PATH = "~/tasks.json";
+  let lastTaskId = localStorage.getItem("az_last_task_id");
+  console.log("Agent Zero Bridge V2: Initialized and watching " + TASK_PATH);
+
+  async function checkBridge() {
+    try {
+      const resp = await fetch(`/api/file_read?path=${encodeURIComponent(TASK_PATH)}`);
+      if (!resp.ok) return;
+      const data = await resp.json();
+      
+      // Clean the content: strip BOM and leading/trailing whitespace
+      let cleanContent = data.content.replace(/^[\ufeff\u200b]+/g, '').trim();
+      if (!cleanContent) return;
+
+      const task = JSON.parse(cleanContent);
+      
+      if (task && task.id !== lastTaskId) {
+        console.log("Agent Zero Bridge: Incoming task detected ->", task.id);
+        lastTaskId = task.id;
+        localStorage.setItem("az_last_task_id", lastTaskId);
+        
+        const agent = window.space?.onscreenAgent;
+        if (agent && typeof agent.submitPrompt === 'function') {
+           console.log("Agent Zero Bridge: Forwarding prompt to Onscreen Agent...");
+           await agent.submitPrompt(task.text);
+        } else {
+           console.warn("Agent Zero Bridge: Onscreen Agent not fully mounted yet.");
+        }
+      }
+    } catch(e) {
+      console.error("Agent Zero Bridge Error:", e);
+    }
+  }
+  setInterval(checkBridge, 3000);
+})();

@@ -58,6 +58,21 @@ function getAllowedMethods(apiModule) {
     .sort();
 }
 
+const QUIET_NOT_FOUND_API_ENDPOINTS = new Set([
+  "file_info",
+  "file_list",
+  "file_paths",
+  "file_read"
+]);
+
+function shouldLogApiFailure(apiModule, statusCode) {
+  if (statusCode !== 404) {
+    return true;
+  }
+
+  return !QUIET_NOT_FOUND_API_ENDPOINTS.has(String(apiModule?.endpointName || ""));
+}
+
 async function handleApiModuleRequest(req, res, requestUrl, apiModule, contextOptions) {
   const methodName = String(req.method || "GET").toUpperCase();
   const handler = apiModule.handlers[methodName.toLowerCase()];
@@ -110,8 +125,10 @@ async function handleApiModuleRequest(req, res, requestUrl, apiModule, contextOp
   } catch (error) {
     const statusCode = Number(error && error.statusCode) || 500;
 
-    console.error(`[api] ${methodName} /api/${apiModule.endpointName} failed (${statusCode}).`);
-    console.error(error?.cause || error);
+    if (shouldLogApiFailure(apiModule, statusCode)) {
+      console.error(`[api] ${methodName} /api/${apiModule.endpointName} failed (${statusCode}).`);
+      console.error(error?.cause || error);
+    }
 
     sendJson(res, statusCode, {
       error: statusCode >= 500 ? "Internal server error" : error.message

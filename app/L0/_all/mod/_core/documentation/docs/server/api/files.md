@@ -71,6 +71,8 @@ These helpers accept single-path forms and composed batch forms where appropriat
 
 The current frontend `fileRead(...)` wrapper also coalesces same-tick reads into one backend `file_read` request when possible, then re-slices the results back to each caller. If that combined read fails, it retries the queued entries individually so shorthand paths like `~/...` and optional missing-file callers still behave like standalone reads.
 
+When one of these frontend helpers fails, the shared framework API client includes the endpoint name plus the concrete HTTP method and request URL in the thrown error text so local-debugging failures can distinguish missing paths from wrong ports, wrong proxy targets, or malformed requests.
+
 `fileWrite(...)` still accepts the simple replacement form `fileWrite(path, content, encoding?)`, but object-form writes now also support incremental mutations:
 
 - `{ path, content, operation: "append" }`

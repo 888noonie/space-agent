@@ -102,7 +102,8 @@ Responses:
 - `responses.js` owns JSON serialization, redirects, file responses, stream responses, and Web `Response` bridging
 - `responses.js.sendFile(...)` must stream file bodies from disk after a stat check instead of buffering the whole file into memory first
 - `cors.js` owns the API CORS policy and `OPTIONS` handling
-- `router.js` must log every caught API handler failure once, including non-5xx responses, and should prefer an attached `error.cause` when endpoint wrappers preserve the underlying backend exception; 5xx bodies are still redacted to `Internal server error` for the browser
+- `router.js` must log caught API handler failures once and should prefer an attached `error.cause` when endpoint wrappers preserve the underlying backend exception, but expected authenticated file-API `404` misses from `file_read`, `file_info`, `file_list`, and `file_paths` stay quiet because browser empty-state probes use those endpoints routinely
+- 5xx bodies are still redacted to `Internal server error` for the browser
 
 ## Development Guidance
 

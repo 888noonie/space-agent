@@ -1,0 +1,75 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Space Agent: Install Dependencies",
+      "type": "shell",
+      "command": "npm install",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Space Agent: Dev Server (localhost:8888)",
+      "type": "shell",
+      "command": "npm run dev -- PORT=8888 SINGLE_USER_APP=true",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": {
+        "pattern": {
+          "regexp": "."
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^> space-agent@.* dev$",
+          "endsPattern": "^space server listening at http://127\\.0\\.0\\.1:8888$"
+        }
+      }
+    },
+    {
+      "label": "Space Agent: Stop Server (localhost:8888)",
+      "type": "shell",
+      "command": "Get-NetTCPConnection -LocalPort 8888 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id $_ -Force }; Write-Host 'Stopped any listener on port 8888.'",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Space Agent: Restart Dev Server (localhost:8888)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Space Agent: Stop Server (localhost:8888)",
+        "Space Agent: Dev Server (localhost:8888)"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Space Agent: Start Server (localhost:8888)",
+      "type": "shell",
+      "command": "npm start -- PORT=8888 SINGLE_USER_APP=true",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Space Agent: Restart Server (localhost:8888)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Space Agent: Stop Server (localhost:8888)",
+        "Space Agent: Start Server (localhost:8888)"
+      ],
+      "problemMatcher": []
+    }
+  ]
+}

@@ -144,3 +144,9 @@ It returns a small status shape rather than a broad runtime dump.
 - `server/customware-layers-and-paths.md`
 - `server/auth-and-sessions.md`
 - `app/modules-and-extensions.md`
+
+## File API Note
+
+Authenticated file APIs intentionally use `404` for missing logical paths such as first-run `~/conf/...` settings files or empty-state `~/spaces/...` manifests.
+
+The browser is expected to interpret those misses when a feature treats absence as normal, and the router keeps those expected `file_read`, `file_info`, `file_list`, and `file_paths` misses quiet in server logs instead of reporting them as hard API failures.

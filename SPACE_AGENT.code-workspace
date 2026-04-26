@@ -1,0 +1,16 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../Downloads/big-bang/big-bang/widgets"
+		}
+	],
+	"settings": {
+		"material-icon-theme.folders.associations": {
+			"fw": "server"
+		},
+		"material-icon-theme.files.associations": {}
+	}
+}

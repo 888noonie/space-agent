@@ -239,7 +239,7 @@ async function parseApiResponse(response) {
   return response.blob();
 }
 
-async function createApiError(endpointName, response) {
+async function createApiError(endpointName, method, url, response) {
   let detail = response.statusText || "Request failed";
 
   try {
@@ -257,7 +257,7 @@ async function createApiError(endpointName, response) {
     detail = response.statusText || "Request failed";
   }
 
-  return new Error(`API ${endpointName} failed with status ${response.status}: ${detail}`);
+  return new Error(`API ${endpointName} failed with status ${response.status} (${method} ${url}): ${detail}`);
 }
 
 function isPlainObject(value) {
@@ -740,11 +740,11 @@ export function createApiClient(options = {}) {
     try {
       response = await fetch(url, init);
     } catch (error) {
-      throw new Error(`API ${endpointName} request failed: ${error.message}`);
+      throw new Error(`API ${endpointName} request failed (${method} ${url}): ${error.message}`);
     }
 
     if (!response.ok) {
-      throw await createApiError(endpointName, response);
+      throw await createApiError(endpointName, method, url, response);
     }
 
     return /** @type {Promise<T>} */ (parseApiResponse(response));

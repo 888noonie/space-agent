@@ -1553,16 +1553,42 @@ function createRequestBody(settings, promptInput) {
   };
 }
 
+function normalizeChatApiEndpoint(apiEndpoint) {
+  const normalizedEndpoint = String(apiEndpoint || "").trim();
+
+  if (!normalizedEndpoint) {
+    return "";
+  }
+
+  let parsedUrl;
+
+  try {
+    parsedUrl = new URL(normalizedEndpoint);
+  } catch {
+    return normalizedEndpoint;
+  }
+
+  const normalizedPath = parsedUrl.pathname.replace(/\/+$/u, "") || "/";
+
+  if (normalizedPath === "/" || normalizedPath === "/v1") {
+    parsedUrl.pathname = `${normalizedPath === "/v1" ? "/v1" : ""}/chat/completions`;
+  }
+
+  return parsedUrl.toString();
+}
+
 function resolveChatRequestUrl(apiEndpoint) {
-  if (!proxyUrl.isProxyableExternalUrl(apiEndpoint)) {
-    return apiEndpoint;
+  const normalizedEndpoint = normalizeChatApiEndpoint(apiEndpoint);
+
+  if (!proxyUrl.isProxyableExternalUrl(normalizedEndpoint)) {
+    return normalizedEndpoint;
   }
 
   if (window.space?.proxy?.buildUrl) {
-    return window.space.proxy.buildUrl(apiEndpoint);
+    return window.space.proxy.buildUrl(normalizedEndpoint);
   }
 
-  return proxyUrl.buildProxyUrl(apiEndpoint);
+  return proxyUrl.buildProxyUrl(normalizedEndpoint);
 }
 
 export const prepareOnscreenAgentCompletionRequest = globalThis.space.extend(
